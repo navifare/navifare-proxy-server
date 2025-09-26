@@ -6,8 +6,8 @@ const { Resend } = require('resend');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Initialize Resend
-const resend = new Resend(process.env.RESEND_API_KEY);
+// Initialize Resend (only if API key is available)
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 // Middleware
 app.use(express.json());
@@ -51,6 +51,17 @@ app.post('/api/feedback', async (req, res) => {
       return res.status(400).json({ 
         success: false, 
         error: 'Message is required' 
+      });
+    }
+    
+    // Check if Resend is configured
+    if (!resend) {
+      console.log(`[${new Date().toISOString()}] ⚠️  Resend not configured - feedback logged but not sent`);
+      return res.json({ 
+        success: true, 
+        messageId: 'logged-only',
+        timestamp: new Date().toISOString(),
+        note: 'Feedback logged but email service not configured'
       });
     }
     
@@ -171,4 +182,7 @@ app.listen(PORT, () => {
   console.log(`📧 Feedback endpoint: http://localhost:${PORT}/api/feedback`);
   console.log(`✈️  AirLabs proxy: http://localhost:${PORT}/api/airlabs`);
   console.log(`🔑 Resend API key configured: ${!!process.env.RESEND_API_KEY}`);
+  if (!process.env.RESEND_API_KEY) {
+    console.log(`⚠️  Feedback emails will be logged but not sent (no API key)`);
+  }
 });
