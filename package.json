@@ -1,7 +1,7 @@
 {
   "name": "navifare-proxy-server",
-  "version": "1.0.0",
-  "description": "Simple proxy server for Navifare frontend to bypass CORS issues with AirLabs API",
+  "version": "2.0.0",
+  "description": "Enhanced proxy server for Navifare frontend - handles AirLabs API and feedback emails",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -11,7 +11,8 @@
   "dependencies": {
     "express": "^4.18.2",
     "http-proxy-middleware": "^2.0.6",
-    "cors": "^2.8.5"
+    "cors": "^2.8.5",
+    "resend": "^3.2.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"
@@ -24,12 +25,15 @@
     "cors",
     "airlabs",
     "navifare",
-    "express"
+    "express",
+    "resend",
+    "feedback",
+    "email"
   ],
   "author": "Navifare",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/navifare-proxy-server.git"
+    "url": "https://github.com/navifare/navifare-proxy-server.git"
   }
 }
