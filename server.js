@@ -135,8 +135,20 @@ app.post('/api/feedback', async (req, res) => {
 const airlabsProxy = createProxyMiddleware({
   target: 'https://airlabs.co',
   changeOrigin: true,
-  pathRewrite: {
-    '^/api/airlabs': '/api/v9'
+  pathRewrite: (path, req) => {
+    // Rewrite path and inject API key
+    const apiKey = process.env.AIRLABS_API_KEY;
+    const newPath = path.replace(/^\/api\/airlabs/, '/api/v9');
+    
+    if (apiKey) {
+      const separator = newPath.includes('?') ? '&' : '?';
+      const finalPath = newPath + separator + `api_key=${apiKey}`;
+      console.log(`[${new Date().toISOString()}] Rewriting path with API key: ${req.method} ${finalPath.replace(apiKey, 'REDACTED')}`);
+      return finalPath;
+    } else {
+      console.log(`[${new Date().toISOString()}] ⚠️ WARNING: AIRLABS_API_KEY not set!`);
+      return newPath;
+    }
   },
   onError: (err, req, res) => {
     console.error(`[${new Date().toISOString()}] Proxy error:`, err);
@@ -147,17 +159,7 @@ const airlabsProxy = createProxyMiddleware({
     });
   },
   onProxyReq: (proxyReq, req, res) => {
-    // Inject API key from environment variable server-side
-    const apiKey = process.env.AIRLABS_API_KEY;
-    if (apiKey) {
-      // Get the current path which already has the pathRewrite applied
-      const originalPath = proxyReq.path;
-      const separator = originalPath.includes('?') ? '&' : '?';
-      proxyReq.path = originalPath + separator + `api_key=${apiKey}`;
-      console.log(`[${new Date().toISOString()}] Proxying request: ${req.method} ${proxyReq.path}`);
-    } else {
-      console.log(`[${new Date().toISOString()}] ⚠️ WARNING: AIRLABS_API_KEY not set!`);
-    }
+    console.log(`[${new Date().toISOString()}] Proxying request: ${req.method} ${proxyReq.path}`);
   },
   onProxyRes: (proxyRes, req, res) => {
     console.log(`[${new Date().toISOString()}] Received response: ${proxyRes.statusCode}`);
