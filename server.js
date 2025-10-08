@@ -19,6 +19,7 @@ app.use(cors({
     'https://front-end-c0mh.onrender.com',
     'https://preview.navifare.com',
     'https://navifare.com',
+    'https://www.navifare.com',
     'http://localhost:5173',
     'http://localhost:4173'
   ],
@@ -145,10 +146,18 @@ const airlabsProxy = createProxyMiddleware({
     });
   },
   onProxyReq: (proxyReq, req, res) => {
-    console.log(`[${new Date().toISOString()}] Proxying request: ${req.method} ${req.url}`);
+    // Inject API key from environment variable server-side
+    const apiKey = process.env.AIRLABS_API_KEY;
+    if (apiKey) {
+      const url = new URL(req.url, 'https://airlabs.co');
+      url.searchParams.set('api_key', apiKey);
+      // Update the path with the API key
+      proxyReq.path = '/api/v9' + url.pathname.replace('/api/airlabs', '') + url.search;
+    }
+    console.log(`[${new Date().toISOString()}] Proxying request: ${req.method} ${req.path} (API key injected: ${!!apiKey})`);
   },
   onProxyRes: (proxyRes, req, res) => {
-    console.log(`[${new Date().toISOString()}] Received response: ${proxyRes.statusCode} for ${req.url}`);
+    console.log(`[${new Date().toISOString()}] Received response: ${proxyRes.statusCode}`);
   }
 });
 
