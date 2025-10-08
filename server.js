@@ -18,6 +18,7 @@ app.use(cors({
   origin: [
     'https://front-end-c0mh.onrender.com',
     'https://preview.navifare.com',
+    'https://dev.navifare.com',
     'https://navifare.com',
     'https://www.navifare.com',
     'http://localhost:5173',
