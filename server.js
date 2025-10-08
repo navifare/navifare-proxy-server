@@ -150,12 +150,14 @@ const airlabsProxy = createProxyMiddleware({
     // Inject API key from environment variable server-side
     const apiKey = process.env.AIRLABS_API_KEY;
     if (apiKey) {
-      const url = new URL(req.url, 'https://airlabs.co');
-      url.searchParams.set('api_key', apiKey);
-      // Update the path with the API key
-      proxyReq.path = '/api/v9' + url.pathname.replace('/api/airlabs', '') + url.search;
+      // Get the current path which already has the pathRewrite applied
+      const originalPath = proxyReq.path;
+      const separator = originalPath.includes('?') ? '&' : '?';
+      proxyReq.path = originalPath + separator + `api_key=${apiKey}`;
+      console.log(`[${new Date().toISOString()}] Proxying request: ${req.method} ${proxyReq.path}`);
+    } else {
+      console.log(`[${new Date().toISOString()}] ⚠️ WARNING: AIRLABS_API_KEY not set!`);
     }
-    console.log(`[${new Date().toISOString()}] Proxying request: ${req.method} ${req.path} (API key injected: ${!!apiKey})`);
   },
   onProxyRes: (proxyRes, req, res) => {
     console.log(`[${new Date().toISOString()}] Received response: ${proxyRes.statusCode}`);
