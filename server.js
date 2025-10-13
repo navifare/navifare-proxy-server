@@ -148,6 +148,9 @@ const priceDiscoveryProxy = createProxyMiddleware({
   onProxyReq: (proxyReq, req, res) => {
     console.log(`[${new Date().toISOString()}] Proxying Price Discovery request: ${req.method} ${req.url}`);
     console.log(`[${new Date().toISOString()}] Request body:`, JSON.stringify(req.body || '(no body)').substring(0, 200));
+    // Set origin header to bypass backend CORS checks
+    proxyReq.setHeader('Origin', 'https://navifare.com');
+    proxyReq.setHeader('Referer', 'https://navifare.com/');
   },
   onProxyRes: (proxyRes, req, res) => {
     console.log(`[${new Date().toISOString()}] Received Price Discovery response: ${proxyRes.statusCode} for ${req.url}`);
