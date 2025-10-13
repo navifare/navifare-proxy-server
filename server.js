@@ -33,8 +33,8 @@ app.get('/health', (req, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     service: 'navifare-proxy-server',
-    version: '2.0.0',
-    features: ['airlabs-proxy', 'feedback-email']
+    version: '2.1.0',
+    features: ['airlabs-proxy', 'feedback-email', 'price-discovery-proxy']
   });
 });
 
