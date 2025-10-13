@@ -135,6 +135,8 @@ app.post('/api/feedback', async (req, res) => {
 const priceDiscoveryProxy = createProxyMiddleware({
   target: 'https://api.navifare.com',
   changeOrigin: true,
+  timeout: 120000, // 120 seconds timeout for backend processing
+  proxyTimeout: 120000, // 120 seconds proxy timeout
   onError: (err, req, res) => {
     console.error(`[${new Date().toISOString()}] Price Discovery proxy error:`, err);
     res.status(500).json({ 
@@ -145,6 +147,7 @@ const priceDiscoveryProxy = createProxyMiddleware({
   },
   onProxyReq: (proxyReq, req, res) => {
     console.log(`[${new Date().toISOString()}] Proxying Price Discovery request: ${req.method} ${req.url}`);
+    console.log(`[${new Date().toISOString()}] Request body:`, JSON.stringify(req.body || '(no body)').substring(0, 200));
   },
   onProxyRes: (proxyRes, req, res) => {
     console.log(`[${new Date().toISOString()}] Received Price Discovery response: ${proxyRes.statusCode} for ${req.url}`);
