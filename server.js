@@ -131,6 +131,26 @@ app.post('/api/feedback', async (req, res) => {
   }
 });
 
+// Proxy configuration for Price Discovery API
+const priceDiscoveryProxy = createProxyMiddleware({
+  target: 'https://api.navifare.com',
+  changeOrigin: true,
+  onError: (err, req, res) => {
+    console.error(`[${new Date().toISOString()}] Price Discovery proxy error:`, err);
+    res.status(500).json({ 
+      error: 'Price Discovery proxy error', 
+      message: err.message,
+      timestamp: new Date().toISOString()
+    });
+  },
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`[${new Date().toISOString()}] Proxying Price Discovery request: ${req.method} ${req.url}`);
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log(`[${new Date().toISOString()}] Received Price Discovery response: ${proxyRes.statusCode} for ${req.url}`);
+  }
+});
+
 // Proxy configuration for AirLabs API
 const airlabsProxy = createProxyMiddleware({
   target: 'https://airlabs.co',
@@ -167,6 +187,7 @@ const airlabsProxy = createProxyMiddleware({
 });
 
 // Apply the proxy middleware
+app.use('/api/v1/price-discovery/flights', priceDiscoveryProxy);
 app.use('/api/airlabs', airlabsProxy);
 
 // Catch-all handler for undefined routes
@@ -195,6 +216,7 @@ app.listen(PORT, () => {
   console.log(`🔗 Health check: http://localhost:${PORT}/health`);
   console.log(`📧 Feedback endpoint: http://localhost:${PORT}/api/feedback`);
   console.log(`✈️  AirLabs proxy: http://localhost:${PORT}/api/airlabs`);
+  console.log(`🎯 Price Discovery proxy: http://localhost:${PORT}/api/v1/price-discovery/flights`);
   console.log(`🔑 Resend API key configured: ${!!process.env.RESEND_API_KEY}`);
   if (!process.env.RESEND_API_KEY) {
     console.log(`⚠️  Feedback emails will be logged but not sent (no API key)`);
