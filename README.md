@@ -8,7 +8,7 @@ A simple Express.js proxy server to bypass CORS restrictions and handle feedback
 
 ## 📋 What This Does
 
-* **Solves CORS Issues**: Allows your frontend to call AirLabs API without CORS restrictions
+* **Solves CORS Issues**: Allows your frontend to call AirLabs and Farera APIs without CORS restrictions
 * **Handles Feedback**: Sends user feedback emails via Resend
 * **Lightweight**: Minimal dependencies, fast startup
 * **Secure**: Only allows requests from your domains
@@ -66,16 +66,23 @@ Click the "Deploy to Render" button above and follow the prompts.
    * **Build Command**: `npm install`
    * **Start Command**: `npm start`
    * **Node Version**: `18`
-5. **Add environment variable:**
-   * **Key**: `RESEND_API_KEY`
-   * **Value**: Your Resend API key
+5. **Add environment variables:**
+   * **RESEND_API_KEY** – Resend API key (optional if you only need the proxy)
+   * **FARERA_API_KEY** – Farera partner API key
+   * **FARERA_PARTNER_META** – Your Farera partner meta slug
+   * **FARERA_PARTNER_MARKER** – Tracking marker appended to deep links (optional)
+   * **FARERA_API_BASE_URL** – Override Farera base URL (defaults to `https://search.farera.com`)
 6. **Deploy!** 🎉
 
 ## 🔧 Configuration
 
 ### Environment Variables
 
-* `RESEND_API_KEY` (required): Your Resend API key for sending feedback emails
+* `RESEND_API_KEY` (optional): Your Resend API key for sending feedback emails
+* `FARERA_API_BASE_URL` (optional): Base URL for Farera (defaults to `https://search.farera.com`)
+* `FARERA_API_KEY` (required for Farera proxy): Your Farera partner API key
+* `FARERA_PARTNER_META` (optional): Default partner meta slug if the client does not provide one
+* `FARERA_PARTNER_MARKER` (optional): Partner marker appended as `partner_marker`
 * `NODE_ENV` (optional): Set to `production` for production deployment
 * `PORT` (optional): Custom port (Render sets this automatically)
 
@@ -112,6 +119,18 @@ curl -X POST https://your-proxy-url.onrender.com/api/feedback \
 
 # Test AirLabs API (replace with your API key)
 curl "https://your-proxy-url.onrender.com/api/airlabs/routes?api_key=YOUR_KEY&dep_iata=ZRH&arr_iata=NRT&limit=5"
+
+# Test Farera Flight Search (replace with your partner meta)
+curl -X POST "https://your-proxy-url.onrender.com/api/search/YOUR_META" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "currency": "EUR",
+    "language": "en-US",
+    "legs": [
+      {"origin": "ZRH", "destination": "NRT", "date": "2025-05-01"}
+    ],
+    "adults": 1
+  }'
 ```
 
 ## 🔗 Frontend Integration
@@ -165,6 +184,7 @@ The proxy includes:
 * `GET /health` - Health check
 * `POST /api/feedback` - Send feedback email
 * `GET /api/airlabs/*` - Proxies to AirLabs API
+* `POST /api/search/:meta` - Proxies Farera flight search
 * `*` - 404 for undefined routes
 
 ## 🐛 Troubleshooting

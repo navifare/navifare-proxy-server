@@ -9,12 +9,14 @@ const https = require('https');
 
 // Configuration - Update these values after deployment
 const PROXY_URL = process.env.PROXY_URL || 'https://navifare-proxy-server.onrender.com';
-const API_KEY = process.env.AIRLABS_API_KEY || 'your-api-key-here';
+const AIRLABS_API_KEY = process.env.AIRLABS_API_KEY || 'your-api-key-here';
+const FARERA_API_KEY = process.env.FARERA_API_KEY || '';
+const FARERA_PARTNER_META = process.env.FARERA_PARTNER_META || '';
 
 async function testProxy() {
   console.log('🧪 Testing AirLabs Proxy Server...\n');
   console.log(`📍 Proxy URL: ${PROXY_URL}`);
-  console.log(`🔑 API Key: ${API_KEY.substring(0, 8)}...\n`);
+  console.log(`🔑 AirLabs Key: ${AIRLABS_API_KEY.substring(0, 8)}...\n`);
 
   // Test 1: Health check
   console.log('1. Testing health endpoint...');
@@ -29,7 +31,7 @@ async function testProxy() {
   // Test 2: AirLabs API through proxy
   console.log('\n2. Testing AirLabs API through proxy...');
   const testParams = new URLSearchParams({
-    api_key: API_KEY,
+    api_key: AIRLABS_API_KEY,
     dep_iata: 'ZRH',
     arr_iata: 'NRT',
     limit: '5'
@@ -47,6 +49,35 @@ async function testProxy() {
     }
   } catch (error) {
     console.log('❌ AirLabs API test failed:', error.message);
+  }
+
+  // Test 3: Farera flight search (optional)
+  if (FARERA_API_KEY && FARERA_PARTNER_META) {
+    console.log('\n3. Testing Farera flight search proxy...');
+    const fareraPayload = {
+      currency: 'EUR',
+      language: 'en-US',
+      adults: 1,
+      legs: [
+        { origin: 'ZRH', destination: 'NRT', date: '2025-05-01' }
+      ]
+    };
+
+    try {
+      const fareraResponse = await makePostRequest(
+        `${PROXY_URL}/api/search/${encodeURIComponent(FARERA_PARTNER_META)}`,
+        fareraPayload,
+        {
+          'Content-Type': 'application/json',
+        }
+      );
+      console.log('✅ Farera test passed');
+      console.log(`   Solutions returned: ${fareraResponse.solutions?.length || 0}`);
+    } catch (error) {
+      console.log('❌ Farera test failed:', error.message);
+    }
+  } else {
+    console.log('\nℹ️  Skipping Farera test (set FARERA_API_KEY and FARERA_PARTNER_META to enable)');
   }
 
   console.log('\n🎉 Proxy testing complete!');
@@ -83,6 +114,49 @@ function makeRequest(url) {
       request.destroy();
       reject(new Error('Request timeout'));
     });
+  });
+}
+
+function makePostRequest(url, body, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const request = https.request(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+    }, (response) => {
+      let data = '';
+
+      response.on('data', chunk => {
+        data += chunk;
+      });
+
+      response.on('end', () => {
+        try {
+          const jsonData = JSON.parse(data || '{}');
+          if (response.statusCode >= 200 && response.statusCode < 300) {
+            resolve(jsonData);
+          } else {
+            reject(new Error(`HTTP ${response.statusCode}: ${jsonData.message || data}`));
+          }
+        } catch (parseError) {
+          reject(new Error(`Failed to parse response: ${parseError.message}`));
+        }
+      });
+    });
+
+    request.on('error', (error) => {
+      reject(new Error(`Request failed: ${error.message}`));
+    });
+
+    request.setTimeout(15000, () => {
+      request.destroy();
+      reject(new Error('Request timeout'));
+    });
+
+    request.write(JSON.stringify(body ?? {}));
+    request.end();
   });
 }
 

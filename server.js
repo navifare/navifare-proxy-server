@@ -6,6 +6,12 @@ const { Resend } = require('resend');
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Service configuration
+const FARERA_API_BASE_URL = process.env.FARERA_API_BASE_URL || 'https://search.farera.com';
+const FARERA_API_KEY = process.env.FARERA_API_KEY || '';
+const FARERA_PARTNER_MARKER = process.env.FARERA_PARTNER_MARKER || '';
+const FARERA_DEFAULT_META = process.env.FARERA_PARTNER_META || '';
+
 // Initialize Resend (only if API key is available)
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -22,7 +28,11 @@ app.use(cors({
     'https://navifare.com',
     'https://www.navifare.com',
     'http://localhost:5173',
-    'http://localhost:4173'
+  'http://localhost:5174',
+    'http://localhost:4173',
+    'http://localhost:6274',
+    'http://localhost:3000',
+    'http://localhost'
   ],
   credentials: true
 }));
@@ -35,6 +45,19 @@ app.get('/health', (req, res) => {
     service: 'navifare-proxy-server',
     version: '2.1.0',
     features: ['airlabs-proxy', 'feedback-email', 'price-discovery-proxy']
+  });
+});
+
+// Config endpoint
+app.get('/config', (req, res) => {
+  res.json({ 
+    status: 'ok',
+    environment: process.env.NODE_ENV || 'development',
+    version: '2.0.0',
+    features: {
+      airlabs: true,
+      feedback: true
+    }
   });
 });
 
@@ -196,8 +219,87 @@ const airlabsProxy = createProxyMiddleware({
 app.use('/api/v1/price-discovery/flights', priceDiscoveryProxy);
 app.use('/api/airlabs', airlabsProxy);
 
-// Catch-all handler for undefined routes
-app.use('*', (req, res) => {
+/**
+ * Farera Flight Search proxy.
+ *
+ * Accepts POST requests at /api/search/:meta and forwards them to the Farera flight search API,
+ * injecting the partner API key and optional partner marker.
+ */
+app.post('/api/search/:meta?', async (req, res) => {
+  const requestedMeta = req.params.meta;
+  const meta = requestedMeta || FARERA_DEFAULT_META;
+
+  if (!FARERA_API_KEY) {
+    return res.status(500).json({
+      error: 'Missing configuration',
+      message: 'FARERA_API_KEY is not configured on the proxy server.',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  if (!meta) {
+    return res.status(400).json({
+      error: 'Missing meta',
+      message: 'No Farera partner meta provided. Pass it in the request path or set FARERA_PARTNER_META.',
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  try {
+    const targetUrl = new URL(`/api/search/${encodeURIComponent(meta)}`, FARERA_API_BASE_URL);
+
+    // Preserve incoming query string parameters
+    Object.entries(req.query || {}).forEach(([key, value]) => {
+      if (Array.isArray(value)) {
+        value.forEach(v => targetUrl.searchParams.append(key, v));
+      } else if (value !== undefined) {
+        targetUrl.searchParams.append(key, value);
+      }
+    });
+
+    // Ensure partner marker is present
+    if (FARERA_PARTNER_MARKER) {
+      targetUrl.searchParams.set('partner_marker', FARERA_PARTNER_MARKER);
+    }
+
+    console.log(`[${new Date().toISOString()}] ✈️  Forwarding Farera search`, {
+      url: targetUrl.toString(),
+      meta,
+    });
+
+    const upstreamResponse = await fetch(targetUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-API-KEY': FARERA_API_KEY,
+      },
+      body: JSON.stringify(req.body ?? {}),
+    });
+
+    const responseBody = await upstreamResponse.text();
+    const contentType = upstreamResponse.headers.get('content-type') || 'application/json';
+
+    res
+      .status(upstreamResponse.status)
+      .set('content-type', contentType)
+      .send(responseBody);
+
+    console.log(
+      `[${new Date().toISOString()}] ✅ Farera response ${upstreamResponse.status} (${responseBody.length} bytes)`
+    );
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] ❌ Farera proxy error`, error);
+    res.status(502).json({
+      error: 'Farera proxy error',
+      message: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
+
+// Catch-all handler for undefined routes (must be last)
+app.use((req, res) => {
   res.status(404).json({ 
     error: 'Not found', 
     message: `Route ${req.originalUrl} not found`,
