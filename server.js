@@ -248,6 +248,10 @@ app.post('/api/search/:meta?', async (req, res) => {
 
   try {
     const targetUrl = new URL(`/api/search/${encodeURIComponent(meta)}`, FARERA_API_BASE_URL);
+    const redactedKey =
+      typeof FARERA_API_KEY === 'string' && FARERA_API_KEY.length > 8
+        ? `${FARERA_API_KEY.slice(0, 4)}…${FARERA_API_KEY.slice(-4)}`
+        : '(short/empty)';
 
     // Preserve incoming query string parameters
     Object.entries(req.query || {}).forEach(([key, value]) => {
@@ -264,8 +268,10 @@ app.post('/api/search/:meta?', async (req, res) => {
     }
 
     console.log(`[${new Date().toISOString()}] ✈️  Forwarding Farera search`, {
+      baseUrl: FARERA_API_BASE_URL,
       url: targetUrl.toString(),
       meta,
+      apiKey: redactedKey,
     });
 
     const upstreamResponse = await fetch(targetUrl, {
@@ -280,6 +286,15 @@ app.post('/api/search/:meta?', async (req, res) => {
 
     const responseBody = await upstreamResponse.text();
     const contentType = upstreamResponse.headers.get('content-type') || 'application/json';
+
+    if (!upstreamResponse.ok) {
+      console.warn(
+        `[${new Date().toISOString()}] ⚠️ Farera responded with ${upstreamResponse.status}: ${responseBody.slice(
+          0,
+          500
+        )}`
+      );
+    }
 
     res
       .status(upstreamResponse.status)
