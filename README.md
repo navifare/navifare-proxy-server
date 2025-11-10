@@ -80,8 +80,8 @@ Click the "Deploy to Render" button above and follow the prompts.
 
 * `RESEND_API_KEY` (optional): Your Resend API key for sending feedback emails
 * `FARERA_API_BASE_URL` (optional): Base URL for Farera (defaults to `https://search.farera.com`)
-* `FARERA_API_KEY` (required for Farera proxy): Your Farera partner API key
-* `FARERA_PARTNER_META` (optional): Default partner meta slug if the client does not provide one
+* `FARERA_API_KEY` (required for direct Farera calls): Your Farera partner API key. Not required when proxying.
+* `FARERA_PARTNER_META` (optional): Default partner meta slug if the client does not provide one. Required if the request path omits `:meta`.
 * `FARERA_PARTNER_MARKER` (optional): Partner marker appended as `partner_marker`
 * `NODE_ENV` (optional): Set to `production` for production deployment
 * `PORT` (optional): Custom port (Render sets this automatically)
