@@ -228,7 +228,7 @@ app.use('/api/airlabs', airlabsProxy);
  */
 app.post('/api/search/:meta?', async (req, res) => {
   const requestedMeta = req.params.meta;
-  const meta = requestedMeta || FARERA_DEFAULT_META;
+  const meta = requestedMeta || FARERA_DEFAULT_META || 'navifare_search';
 
   if (!FARERA_API_KEY) {
     return res.status(500).json({
