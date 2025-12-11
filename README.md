@@ -104,24 +104,24 @@ After deployment, test your proxy:
 
 ```bash
 # Test health endpoint
-curl https://your-proxy-url.onrender.com/health
+curl https://navifare-proxy-server.onrender.com/health
 
 # Test feedback endpoint
-curl -X POST https://your-proxy-url.onrender.com/api/feedback \
+curl -X POST https://navifare-proxy-server.onrender.com/api/feedback \
   -H "Content-Type: application/json" \
   -d '{
     "message": "Test feedback message",
     "searchId": "test-123",
     "userAgent": "Test Browser",
     "timestamp": "2025-01-01T00:00:00.000Z",
-    "url": "https://your-frontend.com"
+    "url": "https://navifare.com"
   }'
 
 # Test AirLabs API (replace with your API key)
-curl "https://your-proxy-url.onrender.com/api/airlabs/routes?api_key=YOUR_KEY&dep_iata=ZRH&arr_iata=NRT&limit=5"
+curl "https://navifare-proxy-server.onrender.com/api/airlabs/routes?api_key=YOUR_KEY&dep_iata=ZRH&arr_iata=NRT&limit=5"
 
 # Test Farera Flight Search (replace with your partner meta)
-curl -X POST "https://your-proxy-url.onrender.com/api/search/YOUR_META" \
+curl -X POST "https://navifare-proxy-server.onrender.com/api/search/YOUR_META" \
   -H "Content-Type: application/json" \
   -d '{
     "currency": "EUR",
@@ -133,7 +133,7 @@ curl -X POST "https://your-proxy-url.onrender.com/api/search/YOUR_META" \
   }'
 
 # Test GoToGate GraphQL Search
-curl -X POST "https://your-proxy-url.onrender.com/api/search-on-result-page" \
+curl -X POST "https://navifare-proxy-server.onrender.com/api/search-on-result-page" \
   -H "Content-Type: application/json" \
   -d '{
     "query": "query SearchOnResultPage($routes: [Route!]!, $adults: Int!) { search(routes: $routes, adults: $adults) { flights { id } } }",
@@ -152,14 +152,14 @@ Update your frontend's `airlabsService.ts`:
 ```javascript
 const AIRLABS_API_BASE = import.meta.env.DEV 
   ? '/api/airlabs' // Use Vite proxy in development
-  : 'https://your-proxy-url.onrender.com/api/airlabs' // Use your proxy in production
+  : 'https://navifare-proxy-server.onrender.com/api/airlabs' // Use proxy server in production
 ```
 
 ### Feedback System
 Update your frontend's `feedbackApiService.ts`:
 
 ```javascript
-const response = await fetch('https://your-proxy-url.onrender.com/api/feedback', {
+const response = await fetch('https://navifare-proxy-server.onrender.com/api/feedback', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -174,7 +174,7 @@ Update your frontend's `flightSearchProviders.ts`:
 ```javascript
 const SEARCH_GRAPHQL_ENDPOINT = import.meta.env.DEV 
   ? '/api/search-on-result-page' // Use Vite proxy in development
-  : 'https://your-proxy-url.onrender.com/api/search-on-result-page' // Use proxy server in production
+  : 'https://navifare-proxy-server.onrender.com/api/search-on-result-page' // Use proxy server in production
 ```
 
 ## 📊 Monitoring
