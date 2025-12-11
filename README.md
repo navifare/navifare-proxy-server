@@ -8,7 +8,7 @@ A simple Express.js proxy server to bypass CORS restrictions and handle feedback
 
 ## 📋 What This Does
 
-* **Solves CORS Issues**: Allows your frontend to call AirLabs and Farera APIs without CORS restrictions
+* **Solves CORS Issues**: Allows your frontend to call AirLabs, Farera, and GoToGate APIs without CORS restrictions
 * **Handles Feedback**: Sends user feedback emails via Resend
 * **Lightweight**: Minimal dependencies, fast startup
 * **Secure**: Only allows requests from your domains
@@ -131,6 +131,17 @@ curl -X POST "https://your-proxy-url.onrender.com/api/search/YOUR_META" \
     ],
     "adults": 1
   }'
+
+# Test GoToGate GraphQL Search
+curl -X POST "https://your-proxy-url.onrender.com/api/search-on-result-page" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "query SearchOnResultPage($routes: [Route!]!, $adults: Int!) { search(routes: $routes, adults: $adults) { flights { id } } }",
+    "variables": {
+      "routes": [{"origin": "ZRH", "destination": "NRT", "date": "2025-05-01"}],
+      "adults": 1
+    }
+  }'
 ```
 
 ## 🔗 Frontend Integration
@@ -155,6 +166,15 @@ const response = await fetch('https://your-proxy-url.onrender.com/api/feedback',
   },
   body: JSON.stringify(feedbackData)
 })
+```
+
+### GoToGate GraphQL API
+Update your frontend's `flightSearchProviders.ts`:
+
+```javascript
+const SEARCH_GRAPHQL_ENDPOINT = import.meta.env.DEV 
+  ? '/api/search-on-result-page' // Use Vite proxy in development
+  : 'https://your-proxy-url.onrender.com/api/search-on-result-page' // Use proxy server in production
 ```
 
 ## 📊 Monitoring
@@ -185,6 +205,7 @@ The proxy includes:
 * `POST /api/feedback` - Send feedback email
 * `GET /api/airlabs/*` - Proxies to AirLabs API
 * `POST /api/search/:meta` - Proxies Farera flight search
+* `POST /api/search-on-result-page` - Proxies GoToGate GraphQL SearchOnResultPage
 * `*` - 404 for undefined routes
 
 ## 🐛 Troubleshooting

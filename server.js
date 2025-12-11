@@ -44,8 +44,8 @@ app.get('/health', (req, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     service: 'navifare-proxy-server',
-    version: '2.1.0',
-    features: ['airlabs-proxy', 'feedback-email', 'price-discovery-proxy']
+    version: '2.2.0',
+    features: ['airlabs-proxy', 'feedback-email', 'price-discovery-proxy', 'gotogate-graphql-proxy']
   });
 });
 
@@ -216,9 +216,33 @@ const airlabsProxy = createProxyMiddleware({
   }
 });
 
+// Proxy configuration for GoToGate GraphQL API
+const gotogateProxy = createProxyMiddleware({
+  target: 'https://www.gotogate.com',
+  changeOrigin: true,
+  pathRewrite: {
+    '^/api/search-on-result-page': '/graphql/SearchOnResultPage'
+  },
+  onError: (err, req, res) => {
+    console.error(`[${new Date().toISOString()}] GoToGate proxy error:`, err);
+    res.status(500).json({ 
+      error: 'GoToGate proxy error', 
+      message: err.message,
+      timestamp: new Date().toISOString()
+    });
+  },
+  onProxyReq: (proxyReq, req, res) => {
+    console.log(`[${new Date().toISOString()}] Proxying GoToGate GraphQL request: ${req.method} ${proxyReq.path}`);
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    console.log(`[${new Date().toISOString()}] Received GoToGate response: ${proxyRes.statusCode}`);
+  }
+});
+
 // Apply the proxy middleware
 app.use('/api/v1/price-discovery/flights', priceDiscoveryProxy);
 app.use('/api/airlabs', airlabsProxy);
+app.use('/api/search-on-result-page', gotogateProxy);
 
 /**
  * Farera Flight Search proxy.
@@ -341,6 +365,7 @@ app.listen(PORT, () => {
   console.log(`📧 Feedback endpoint: http://localhost:${PORT}/api/feedback`);
   console.log(`✈️  AirLabs proxy: http://localhost:${PORT}/api/airlabs`);
   console.log(`🎯 Price Discovery proxy: http://localhost:${PORT}/api/v1/price-discovery/flights`);
+  console.log(`🔍 GoToGate GraphQL proxy: http://localhost:${PORT}/api/search-on-result-page`);
   console.log(`🔑 Resend API key configured: ${!!process.env.RESEND_API_KEY}`);
   if (!process.env.RESEND_API_KEY) {
     console.log(`⚠️  Feedback emails will be logged but not sent (no API key)`);
