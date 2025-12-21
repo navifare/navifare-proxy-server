@@ -244,6 +244,28 @@ app.use('/api/v1/price-discovery/flights', priceDiscoveryProxy);
 app.use('/api/airlabs', airlabsProxy);
 app.use('/api/search-on-result-page', gotogateProxy);
 
+// Proxy configuration for Kiwi Tequila API
+const kiwiProxy = createProxyMiddleware({
+  target: 'https://tequila-api.kiwi.com',
+  changeOrigin: true,
+  pathRewrite: { '^/api/kiwi': '' },
+  onProxyReq: (proxyReq, req) => {
+    const apiKey = process.env.KIWI_API_KEY;
+    if (apiKey) {
+      proxyReq.setHeader('apikey', apiKey);
+      console.log(`[${new Date().toISOString()}] Proxying Kiwi: ${req.method} ${proxyReq.path}`);
+    } else {
+      console.log(`[${new Date().toISOString()}] ⚠️ KIWI_API_KEY not set!`);
+    }
+  },
+  onProxyRes: (proxyRes) => {
+    console.log(`[${new Date().toISOString()}] Kiwi response: ${proxyRes.statusCode}`);
+  }
+});
+
+app.use('/api/kiwi', kiwiProxy);
+
+
 /**
  * Farera Flight Search proxy.
  *
