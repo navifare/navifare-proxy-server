@@ -369,6 +369,23 @@ app.use((req, res) => {
   });
 });
 
+// Gemini AI proxy - add after other proxy definitions
+const geminiProxy = createProxyMiddleware({
+  target: 'https://generativelanguage.googleapis.com',
+  changeOrigin: true,
+  pathRewrite: { '^/api/gemini': '/v1beta' },
+  onProxyReq: (proxyReq, req) => {
+    // Add API key as query parameter
+    const url = new URL(proxyReq.path, 'https://generativelanguage.googleapis.com');
+    url.searchParams.set('key', process.env.GEMINI_API_KEY);
+    proxyReq.path = url.pathname + url.search;
+    console.log(`[Gemini] ${req.method} ${proxyReq.path}`);
+  }
+});
+
+app.use('/api/gemini', geminiProxy);
+
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(`[${new Date().toISOString()}] Unhandled error:`, err);
@@ -394,19 +411,4 @@ app.listen(PORT, () => {
   }
 });
 
-// Gemini AI proxy - add after other proxy definitions
-const geminiProxy = createProxyMiddleware({
-  target: 'https://generativelanguage.googleapis.com',
-  changeOrigin: true,
-  pathRewrite: { '^/api/gemini': '/v1beta' },
-  onProxyReq: (proxyReq, req) => {
-    // Add API key as query parameter
-    const url = new URL(proxyReq.path, 'https://generativelanguage.googleapis.com');
-    url.searchParams.set('key', process.env.GEMINI_API_KEY);
-    proxyReq.path = url.pathname + url.search;
-    console.log(`[Gemini] ${req.method} ${proxyReq.path}`);
-  }
-});
-
-app.use('/api/gemini', geminiProxy);
 
