@@ -162,6 +162,22 @@ app.use(cors({
   credentials: true
 }));
 
+// Test endpoint for API error alerts (remove after testing)
+app.get('/test-alert', async (req, res) => {
+  trackApiError('airlabs', {
+    type: 'test_alert',
+    statusCode: 429,
+    message: 'This is a test alert - please ignore',
+    endpoint: '/test-alert',
+    method: 'GET'
+  });
+  res.json({
+    success: true,
+    message: 'Test alert triggered. Check your email.',
+    note: 'Remember to remove this endpoint after testing!'
+  });
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
