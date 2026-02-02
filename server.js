@@ -48,35 +48,35 @@ async function sendApiErrorAlert(service, errorDetails) {
 
   const recipients = ['simone@navifare.com', 'george@navifare.com'];
 
-  const htmlContent = \`
+  const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <h2 style="color: #dc2626; border-bottom: 2px solid #dc2626; padding-bottom: 10px;">
-        ⚠️ API Error Alert: \${service.toUpperCase()}
+        ⚠️ API Error Alert: ${service.toUpperCase()}
       </h2>
 
       <div style="background-color: #fef2f2; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #dc2626;">
         <h3 style="color: #991b1b; margin-top: 0;">Error Details:</h3>
         <ul style="color: #7f1d1d; line-height: 1.8;">
-          <li><strong>Status Code:</strong> \${errorDetails.statusCode || 'N/A'}</li>
-          <li><strong>Error Message:</strong> \${errorDetails.message || 'Unknown error'}</li>
-          <li><strong>Error Type:</strong> \${errorDetails.type || 'Unknown'}</li>
-          <li><strong>First Error:</strong> \${new Date(state.firstErrorTime).toISOString()}</li>
-          <li><strong>Error Count:</strong> \${state.errorCount} errors</li>
+          <li><strong>Status Code:</strong> ${errorDetails.statusCode || 'N/A'}</li>
+          <li><strong>Error Message:</strong> ${errorDetails.message || 'Unknown error'}</li>
+          <li><strong>Error Type:</strong> ${errorDetails.type || 'Unknown'}</li>
+          <li><strong>First Error:</strong> ${new Date(state.firstErrorTime).toISOString()}</li>
+          <li><strong>Error Count:</strong> ${state.errorCount} errors</li>
         </ul>
       </div>
 
       <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
         <h3 style="color: #333; margin-top: 0;">Request Info:</h3>
         <ul style="color: #555; line-height: 1.6;">
-          <li><strong>Endpoint:</strong> \${errorDetails.endpoint || 'N/A'}</li>
-          <li><strong>Method:</strong> \${errorDetails.method || 'GET'}</li>
+          <li><strong>Endpoint:</strong> ${errorDetails.endpoint || 'N/A'}</li>
+          <li><strong>Method:</strong> ${errorDetails.method || 'GET'}</li>
         </ul>
       </div>
 
       <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0;">
         <h3 style="color: #92400e; margin-top: 0;">Action Required:</h3>
         <p style="color: #78350f;">
-          \${errorDetails.statusCode === 429 || errorDetails.type === 'quota_exceeded'
+          ${errorDetails.statusCode === 429 || errorDetails.type === 'quota_exceeded'
             ? 'The API quota may have been exceeded. Check the Airlabs dashboard and consider upgrading the plan.'
             : 'Please investigate the issue. Check the proxy server logs for more details.'}
         </p>
@@ -85,27 +85,27 @@ async function sendApiErrorAlert(service, errorDetails) {
       <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
         <p style="color: #888; font-size: 12px;">
           This alert was sent from the Navifare Proxy Server.<br>
-          Next alert will be sent after \${new Date(now + ALERT_COOLDOWN_MS).toISOString()} (15 min cooldown).
+          Next alert will be sent after ${new Date(now + ALERT_COOLDOWN_MS).toISOString()} (15 min cooldown).
         </p>
       </div>
     </div>
-  \`;
+  `;
 
   try {
     const result = await resend.emails.send({
       from: 'alerts@notifications.navifare.com',
       to: recipients,
-      subject: \`🚨 API Alert: \${service.toUpperCase()} - \${errorDetails.type || 'Error'}\`,
+      subject: `🚨 API Alert: ${service.toUpperCase()} - ${errorDetails.type || 'Error'}`,
       html: htmlContent
     });
 
-    console.log(\`[\${new Date().toISOString()}] 📧 Alert email sent:\`, {
+    console.log(`[${new Date().toISOString()}] 📧 Alert email sent:`, {
       messageId: result.data?.id,
       service,
       errorCount: state.errorCount
     });
   } catch (emailError) {
-    console.error(\`[\${new Date().toISOString()}] ❌ Failed to send alert email:\`, emailError);
+    console.error(`[${new Date().toISOString()}] ❌ Failed to send alert email:`, emailError);
   }
 }
 
@@ -122,7 +122,7 @@ function trackApiError(service, errorDetails) {
 
   state.errorCount++;
 
-  console.log(\`[\${new Date().toISOString()}] 🔴 \${service.toUpperCase()} API error #\${state.errorCount}:\`, errorDetails);
+  console.log(`[${new Date().toISOString()}] 🔴 ${service.toUpperCase()} API error #${state.errorCount}:`, errorDetails);
 
   // Send alert on first error or after cooldown
   sendApiErrorAlert(service, errorDetails);
@@ -132,7 +132,7 @@ function trackApiError(service, errorDetails) {
 function markServiceRecovered(service) {
   const state = alertState[service];
   if (state.isInErrorState) {
-    console.log(\`[\${new Date().toISOString()}] ✅ \${service.toUpperCase()} API recovered after \${state.errorCount} errors\`);
+    console.log(`[${new Date().toISOString()}] ✅ ${service.toUpperCase()} API recovered after ${state.errorCount} errors`);
     state.isInErrorState = false;
     state.errorCount = 0;
     state.firstErrorTime = 0;
