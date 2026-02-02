@@ -15,6 +15,130 @@ const FARERA_DEFAULT_META = process.env.FARERA_PARTNER_META || '';
 // Initialize Resend (only if API key is available)
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
+// Alert tracking to prevent email spam
+const alertState = {
+  airlabs: {
+    lastAlertTime: 0,
+    errorCount: 0,
+    firstErrorTime: 0,
+    isInErrorState: false
+  }
+};
+
+// Minimum time between alert emails (15 minutes)
+const ALERT_COOLDOWN_MS = 15 * 60 * 1000;
+
+// Send an alert email for API errors
+async function sendApiErrorAlert(service, errorDetails) {
+  if (!resend) {
+    console.log(`[${new Date().toISOString()}] ⚠️ Cannot send alert - Resend not configured`);
+    return;
+  }
+
+  const state = alertState[service];
+  const now = Date.now();
+
+  // Only send alert if cooldown has passed
+  if (now - state.lastAlertTime < ALERT_COOLDOWN_MS) {
+    console.log(`[${new Date().toISOString()}] ⏳ Alert cooldown active, skipping email (${state.errorCount} errors since ${new Date(state.firstErrorTime).toISOString()})`);
+    return;
+  }
+
+  state.lastAlertTime = now;
+
+  const recipients = ['simone@navifare.com', 'george@navifare.com'];
+
+  const htmlContent = \`
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #dc2626; border-bottom: 2px solid #dc2626; padding-bottom: 10px;">
+        ⚠️ API Error Alert: \${service.toUpperCase()}
+      </h2>
+
+      <div style="background-color: #fef2f2; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #dc2626;">
+        <h3 style="color: #991b1b; margin-top: 0;">Error Details:</h3>
+        <ul style="color: #7f1d1d; line-height: 1.8;">
+          <li><strong>Status Code:</strong> \${errorDetails.statusCode || 'N/A'}</li>
+          <li><strong>Error Message:</strong> \${errorDetails.message || 'Unknown error'}</li>
+          <li><strong>Error Type:</strong> \${errorDetails.type || 'Unknown'}</li>
+          <li><strong>First Error:</strong> \${new Date(state.firstErrorTime).toISOString()}</li>
+          <li><strong>Error Count:</strong> \${state.errorCount} errors</li>
+        </ul>
+      </div>
+
+      <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="color: #333; margin-top: 0;">Request Info:</h3>
+        <ul style="color: #555; line-height: 1.6;">
+          <li><strong>Endpoint:</strong> \${errorDetails.endpoint || 'N/A'}</li>
+          <li><strong>Method:</strong> \${errorDetails.method || 'GET'}</li>
+        </ul>
+      </div>
+
+      <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0;">
+        <h3 style="color: #92400e; margin-top: 0;">Action Required:</h3>
+        <p style="color: #78350f;">
+          \${errorDetails.statusCode === 429 || errorDetails.type === 'quota_exceeded'
+            ? 'The API quota may have been exceeded. Check the Airlabs dashboard and consider upgrading the plan.'
+            : 'Please investigate the issue. Check the proxy server logs for more details.'}
+        </p>
+      </div>
+
+      <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
+        <p style="color: #888; font-size: 12px;">
+          This alert was sent from the Navifare Proxy Server.<br>
+          Next alert will be sent after \${new Date(now + ALERT_COOLDOWN_MS).toISOString()} (15 min cooldown).
+        </p>
+      </div>
+    </div>
+  \`;
+
+  try {
+    const result = await resend.emails.send({
+      from: 'alerts@notifications.navifare.com',
+      to: recipients,
+      subject: \`🚨 API Alert: \${service.toUpperCase()} - \${errorDetails.type || 'Error'}\`,
+      html: htmlContent
+    });
+
+    console.log(\`[\${new Date().toISOString()}] 📧 Alert email sent:\`, {
+      messageId: result.data?.id,
+      service,
+      errorCount: state.errorCount
+    });
+  } catch (emailError) {
+    console.error(\`[\${new Date().toISOString()}] ❌ Failed to send alert email:\`, emailError);
+  }
+}
+
+// Track API error and trigger alert if needed
+function trackApiError(service, errorDetails) {
+  const state = alertState[service];
+  const now = Date.now();
+
+  if (!state.isInErrorState) {
+    state.isInErrorState = true;
+    state.firstErrorTime = now;
+    state.errorCount = 0;
+  }
+
+  state.errorCount++;
+
+  console.log(\`[\${new Date().toISOString()}] 🔴 \${service.toUpperCase()} API error #\${state.errorCount}:\`, errorDetails);
+
+  // Send alert on first error or after cooldown
+  sendApiErrorAlert(service, errorDetails);
+}
+
+// Mark service as recovered
+function markServiceRecovered(service) {
+  const state = alertState[service];
+  if (state.isInErrorState) {
+    console.log(\`[\${new Date().toISOString()}] ✅ \${service.toUpperCase()} API recovered after \${state.errorCount} errors\`);
+    state.isInErrorState = false;
+    state.errorCount = 0;
+    state.firstErrorTime = 0;
+  }
+}
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -185,11 +309,12 @@ const priceDiscoveryProxy = createProxyMiddleware({
 const airlabsProxy = createProxyMiddleware({
   target: 'https://airlabs.co',
   changeOrigin: true,
+  selfHandleResponse: true, // Required to intercept and inspect response body
   pathRewrite: (path, req) => {
     // Rewrite path and inject API key
     const apiKey = process.env.AIRLABS_API_KEY;
     const newPath = path.replace(/^\/api\/airlabs/, '/api/v9');
-    
+
     if (apiKey) {
       const separator = newPath.includes('?') ? '&' : '?';
       const finalPath = newPath + separator + `api_key=${apiKey}`;
@@ -202,9 +327,16 @@ const airlabsProxy = createProxyMiddleware({
   },
   onError: (err, req, res) => {
     console.error(`[${new Date().toISOString()}] Proxy error:`, err);
-    res.status(500).json({ 
-      error: 'Proxy error', 
+    trackApiError('airlabs', {
+      type: 'connection_error',
       message: err.message,
+      endpoint: req.originalUrl,
+      method: req.method
+    });
+    res.status(500).json({
+      error: 'Proxy error',
+      message: err.message,
+      serviceUnavailable: true,
       timestamp: new Date().toISOString()
     });
   },
@@ -212,7 +344,73 @@ const airlabsProxy = createProxyMiddleware({
     console.log(`[${new Date().toISOString()}] Proxying request: ${req.method} ${proxyReq.path}`);
   },
   onProxyRes: (proxyRes, req, res) => {
-    console.log(`[${new Date().toISOString()}] Received response: ${proxyRes.statusCode}`);
+    const statusCode = proxyRes.statusCode;
+    console.log(`[${new Date().toISOString()}] Received response: ${statusCode}`);
+
+    // Collect response body
+    let body = [];
+    proxyRes.on('data', (chunk) => {
+      body.push(chunk);
+    });
+
+    proxyRes.on('end', () => {
+      body = Buffer.concat(body).toString();
+
+      let parsedBody;
+      try {
+        parsedBody = JSON.parse(body);
+      } catch (e) {
+        parsedBody = { raw: body };
+      }
+
+      // Check for errors
+      const isHttpError = statusCode >= 400;
+      const isApiError = parsedBody.error !== undefined;
+      const isQuotaError = statusCode === 429 ||
+        (parsedBody.error && (
+          parsedBody.error.message?.toLowerCase().includes('quota') ||
+          parsedBody.error.message?.toLowerCase().includes('limit') ||
+          parsedBody.error.code === 'quota_exceeded'
+        ));
+
+      if (isHttpError || isApiError) {
+        const errorType = isQuotaError ? 'quota_exceeded' :
+                         statusCode === 401 ? 'authentication_error' :
+                         statusCode === 403 ? 'forbidden' :
+                         statusCode >= 500 ? 'server_error' : 'api_error';
+
+        trackApiError('airlabs', {
+          type: errorType,
+          statusCode: statusCode,
+          message: parsedBody.error?.message || parsedBody.error || `HTTP ${statusCode}`,
+          endpoint: req.originalUrl,
+          method: req.method
+        });
+
+        // Add serviceUnavailable flag to help frontend
+        if (!parsedBody.serviceUnavailable) {
+          parsedBody.serviceUnavailable = true;
+          parsedBody.errorType = errorType;
+          body = JSON.stringify(parsedBody);
+        }
+      } else {
+        // Service is working - mark as recovered if it was in error state
+        markServiceRecovered('airlabs');
+      }
+
+      // Forward response to client
+      res.status(statusCode);
+
+      // Copy headers
+      Object.keys(proxyRes.headers).forEach(key => {
+        res.setHeader(key, proxyRes.headers[key]);
+      });
+
+      // Override content-length since we may have modified the body
+      res.setHeader('content-length', Buffer.byteLength(body));
+
+      res.end(body);
+    });
   }
 });
 
