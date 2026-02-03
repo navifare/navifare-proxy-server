@@ -184,7 +184,7 @@ app.get('/health', (req, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     service: 'navifare-proxy-server',
-    version: '2.2.0',
+    version: '2.2.1',
     features: ['airlabs-proxy', 'feedback-email', 'price-discovery-proxy', 'gotogate-graphql-proxy']
   });
 });
