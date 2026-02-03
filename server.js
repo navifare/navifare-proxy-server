@@ -417,9 +417,13 @@ const airlabsProxy = createProxyMiddleware({
       // Forward response to client
       res.status(statusCode);
 
-      // Copy headers
+      // Copy headers, but SKIP content-encoding and transfer-encoding
+      // since the body has already been decompressed by Node.js when using selfHandleResponse
       Object.keys(proxyRes.headers).forEach(key => {
-        res.setHeader(key, proxyRes.headers[key]);
+        const lowerKey = key.toLowerCase();
+        if (lowerKey !== 'content-encoding' && lowerKey !== 'transfer-encoding') {
+          res.setHeader(key, proxyRes.headers[key]);
+        }
       });
 
       // Override content-length since we may have modified the body
