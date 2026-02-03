@@ -360,7 +360,10 @@ const airlabsProxy = createProxyMiddleware({
   onProxyReq: (proxyReq, req, res) => {
     // Request uncompressed response to avoid decompression issues
     proxyReq.setHeader('Accept-Encoding', 'identity');
-    console.log(`[${new Date().toISOString()}] Proxying request: ${req.method} ${proxyReq.path}`);
+    // Redact API key from logs
+    const apiKey = process.env.AIRLABS_API_KEY;
+    const redactedPath = apiKey ? proxyReq.path.replace(apiKey, 'REDACTED') : proxyReq.path;
+    console.log(`[${new Date().toISOString()}] Proxying request: ${req.method} ${redactedPath}`);
   },
   onProxyRes: (proxyRes, req, res) => {
     const statusCode = proxyRes.statusCode;
