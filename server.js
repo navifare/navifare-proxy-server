@@ -2,6 +2,7 @@ const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const cors = require('cors');
 const { Resend } = require('resend');
+const zlib = require('zlib');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -361,21 +362,42 @@ const airlabsProxy = createProxyMiddleware({
   },
   onProxyRes: (proxyRes, req, res) => {
     const statusCode = proxyRes.statusCode;
-    console.log(`[${new Date().toISOString()}] Received response: ${statusCode}`);
+    const contentEncoding = proxyRes.headers['content-encoding'];
+    console.log(`[${new Date().toISOString()}] Received response: ${statusCode}, encoding: ${contentEncoding || 'none'}`);
 
-    // Collect response body
-    let body = [];
+    // Collect response body chunks
+    const chunks = [];
     proxyRes.on('data', (chunk) => {
-      body.push(chunk);
+      chunks.push(chunk);
     });
 
     proxyRes.on('end', () => {
-      body = Buffer.concat(body).toString();
+      const rawBuffer = Buffer.concat(chunks);
 
+      // Decompress if needed
+      let decompressedBuffer;
+      try {
+        if (contentEncoding === 'gzip') {
+          decompressedBuffer = zlib.gunzipSync(rawBuffer);
+        } else if (contentEncoding === 'deflate') {
+          decompressedBuffer = zlib.inflateSync(rawBuffer);
+        } else if (contentEncoding === 'br') {
+          decompressedBuffer = zlib.brotliDecompressSync(rawBuffer);
+        } else {
+          decompressedBuffer = rawBuffer;
+        }
+      } catch (decompressError) {
+        console.error(`[${new Date().toISOString()}] Decompression error:`, decompressError.message);
+        // If decompression fails, try using the raw buffer
+        decompressedBuffer = rawBuffer;
+      }
+
+      let body = decompressedBuffer.toString('utf8');
       let parsedBody;
       try {
         parsedBody = JSON.parse(body);
       } catch (e) {
+        console.error(`[${new Date().toISOString()}] JSON parse error:`, e.message);
         parsedBody = { raw: body };
       }
 
@@ -418,15 +440,15 @@ const airlabsProxy = createProxyMiddleware({
       res.status(statusCode);
 
       // Copy headers, but SKIP content-encoding and transfer-encoding
-      // since the body has already been decompressed by Node.js when using selfHandleResponse
+      // since we've decompressed the body
       Object.keys(proxyRes.headers).forEach(key => {
         const lowerKey = key.toLowerCase();
-        if (lowerKey !== 'content-encoding' && lowerKey !== 'transfer-encoding') {
+        if (lowerKey !== 'content-encoding' && lowerKey !== 'transfer-encoding' && lowerKey !== 'content-length') {
           res.setHeader(key, proxyRes.headers[key]);
         }
       });
 
-      // Override content-length since we may have modified the body
+      // Set correct content-length for the decompressed body
       res.setHeader('content-length', Buffer.byteLength(body));
 
       res.end(body);
