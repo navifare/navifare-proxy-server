@@ -185,7 +185,7 @@ app.get('/health', (req, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     service: 'navifare-proxy-server',
-    version: '2.2.1',
+    version: '2.2.2',
     features: ['airlabs-proxy', 'feedback-email', 'price-discovery-proxy', 'gotogate-graphql-proxy']
   });
 });
@@ -358,6 +358,8 @@ const airlabsProxy = createProxyMiddleware({
     });
   },
   onProxyReq: (proxyReq, req, res) => {
+    // Request uncompressed response to avoid decompression issues
+    proxyReq.setHeader('Accept-Encoding', 'identity');
     console.log(`[${new Date().toISOString()}] Proxying request: ${req.method} ${proxyReq.path}`);
   },
   onProxyRes: (proxyRes, req, res) => {
