@@ -145,21 +145,31 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Enable CORS for all routes
-app.use(cors({
-  origin: [
-    'https://front-end-c0mh.onrender.com',
-    'https://preview.navifare.com',
-    'https://dev.navifare.com',
-    'https://navifare.com',
-    'https://www.navifare.com',
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://localhost:5175',
-    'http://localhost:4173',
-    'http://localhost:6274',
-    'http://localhost:3000',
+const ALLOWED_ORIGINS = [
+  'https://front-end-c0mh.onrender.com',
+  'https://preview.navifare.com',
+  'https://dev.navifare.com',
+  'https://navifare.com',
+  'https://www.navifare.com',
+];
+// Allow localhost only in development
+if (process.env.NODE_ENV !== 'production') {
+  ALLOWED_ORIGINS.push(
+    'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175',
+    'http://localhost:4173', 'http://localhost:6274', 'http://localhost:3000',
     'http://localhost'
-  ],
+  );
+}
+app.use(cors({
+  origin: function(origin, callback) {
+    // No origin = server-to-server or same-origin (allow)
+    // Chrome extension origins always allowed
+    if (!origin || ALLOWED_ORIGINS.includes(origin) || /^chrome-extension:\/\//.test(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('CORS not allowed for origin: ' + origin));
+    }
+  },
   credentials: true
 }));
 
@@ -609,6 +619,88 @@ app.post('/api/search/:meta?', async (req, res) => {
       message: error.message,
       timestamp: new Date().toISOString(),
     });
+  }
+});
+
+// ============================================================
+// Gemini API proxy — keeps API key server-side
+// ============================================================
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash';
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+app.post('/api/v1/gemini/extract', async (req, res) => {
+  try {
+    const { prompt, images } = req.body;
+
+    if (!prompt) {
+      return res.status(400).json({ error: 'prompt is required' });
+    }
+
+    if (!GEMINI_API_KEY) {
+      console.error(`[${new Date().toISOString()}] Gemini API key not configured`);
+      return res.status(500).json({ error: 'Gemini API key not configured' });
+    }
+
+    console.log(`[${new Date().toISOString()}] 🤖 Gemini extract request: prompt=${prompt.length} chars, images=${(images || []).length}`);
+
+    // Build Gemini request parts
+    const parts = [{ text: prompt }];
+    if (images && Array.isArray(images)) {
+      for (const img of images) {
+        parts.push({
+          inlineData: {
+            mimeType: img.mimeType || 'image/jpeg',
+            data: img.data
+          }
+        });
+      }
+    }
+
+    const geminiResponse = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 4096
+        }
+      })
+    });
+
+    if (!geminiResponse.ok) {
+      const errorText = await geminiResponse.text();
+      console.error(`[${new Date().toISOString()}] Gemini API error: ${geminiResponse.status}`, errorText.substring(0, 300));
+      return res.status(geminiResponse.status).json({
+        error: 'Gemini API error',
+        status: geminiResponse.status,
+        message: errorText.substring(0, 300)
+      });
+    }
+
+    const data = await geminiResponse.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+
+    // Parse JSON from response
+    let cleanedText = text.replace(/```json\n?|\n?```/g, '').trim();
+    const firstBrace = cleanedText.indexOf('{');
+    const lastBrace = cleanedText.lastIndexOf('}');
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      cleanedText = cleanedText.substring(firstBrace, lastBrace + 1);
+    }
+
+    try {
+      const parsed = JSON.parse(cleanedText);
+      console.log(`[${new Date().toISOString()}] 🤖 Gemini extract success`);
+      res.json({ success: true, data: parsed });
+    } catch (parseError) {
+      console.error(`[${new Date().toISOString()}] Gemini JSON parse error:`, cleanedText.substring(0, 200));
+      res.json({ success: false, error: 'Failed to parse AI response', raw: cleanedText.substring(0, 500) });
+    }
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] Gemini extract error:`, error.message);
+    res.status(500).json({ error: 'Gemini extract error', message: error.message });
   }
 });
 
