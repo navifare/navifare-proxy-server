@@ -626,7 +626,7 @@ app.post('/api/search/:meta?', async (req, res) => {
 // Gemini API proxy — keeps API key server-side
 // ============================================================
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
-const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash-preview';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 app.post('/api/v1/gemini/extract', async (req, res) => {
