@@ -629,6 +629,46 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3-flash-preview';
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
+// Parse raw Gemini text response into JSON. Exported for testing.
+function parseGeminiResponse(text) {
+  if (!text || !text.trim()) {
+    return { success: false, error: 'Empty response from AI', raw: '' };
+  }
+
+  // Strip markdown code fences
+  let cleaned = text.replace(/```json\n?/g, '').replace(/\n?```/g, '').trim();
+
+  // Extract the JSON object: find first { and last }
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (firstBrace === -1 || lastBrace <= firstBrace) {
+    return { success: false, error: 'No JSON object found in AI response', raw: cleaned };
+  }
+  cleaned = cleaned.substring(firstBrace, lastBrace + 1);
+
+  // Fix common Gemini JSON issues before parsing
+  // 1. Trailing commas before } or ]
+  cleaned = cleaned.replace(/,\s*([\]}])/g, '$1');
+  // 2. Single-quoted strings → double-quoted
+  // (only if the JSON doesn't already parse)
+  try {
+    return { success: true, data: JSON.parse(cleaned) };
+  } catch (e) {
+    // Try fixing single quotes
+    const doubleQuoted = cleaned.replace(/'/g, '"');
+    try {
+      return { success: true, data: JSON.parse(doubleQuoted) };
+    } catch (e2) {
+      return { success: false, error: 'Failed to parse AI response', raw: cleaned };
+    }
+  }
+}
+
+// Export for testing
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { parseGeminiResponse };
+}
+
 app.post('/api/v1/gemini/extract', async (req, res) => {
   try {
     const { prompt, images } = req.body;
@@ -680,22 +720,14 @@ app.post('/api/v1/gemini/extract', async (req, res) => {
 
     const data = await geminiResponse.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    const result = parseGeminiResponse(text);
 
-    // Parse JSON from response
-    let cleanedText = text.replace(/```json\n?|\n?```/g, '').trim();
-    const firstBrace = cleanedText.indexOf('{');
-    const lastBrace = cleanedText.lastIndexOf('}');
-    if (firstBrace !== -1 && lastBrace > firstBrace) {
-      cleanedText = cleanedText.substring(firstBrace, lastBrace + 1);
-    }
-
-    try {
-      const parsed = JSON.parse(cleanedText);
+    if (result.success) {
       console.log(`[${new Date().toISOString()}] 🤖 Gemini extract success`);
-      res.json({ success: true, data: parsed });
-    } catch (parseError) {
-      console.error(`[${new Date().toISOString()}] Gemini JSON parse error:`, cleanedText.substring(0, 200));
-      res.json({ success: false, error: 'Failed to parse AI response', raw: cleanedText.substring(0, 500) });
+      res.json({ success: true, data: result.data });
+    } else {
+      console.error(`[${new Date().toISOString()}] Gemini JSON parse error:`, result.raw?.substring(0, 200));
+      res.json({ success: false, error: result.error, raw: result.raw?.substring(0, 500) });
     }
   } catch (error) {
     console.error(`[${new Date().toISOString()}] Gemini extract error:`, error.message);
