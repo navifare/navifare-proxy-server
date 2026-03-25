@@ -663,8 +663,7 @@ app.post('/api/v1/gemini/extract', async (req, res) => {
       body: JSON.stringify({
         contents: [{ parts }],
         generationConfig: {
-          temperature: 0.1,
-          maxOutputTokens: 4096
+          temperature: 0.1
         }
       })
     });
