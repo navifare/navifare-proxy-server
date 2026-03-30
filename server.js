@@ -141,8 +141,8 @@ function markServiceRecovered(service) {
 }
 
 // Middleware
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Enable CORS for all routes
 const ALLOWED_ORIGINS = [
