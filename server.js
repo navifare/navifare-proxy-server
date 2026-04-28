@@ -151,13 +151,15 @@ const ALLOWED_ORIGINS = [
   'https://dev.navifare.com',
   'https://navifare.com',
   'https://www.navifare.com',
+  'https://zerolook.com',
+  'https://www.zerolook.com',
 ];
 // Allow localhost only in development
 if (process.env.NODE_ENV !== 'production') {
   ALLOWED_ORIGINS.push(
     'http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175',
     'http://localhost:4173', 'http://localhost:6274', 'http://localhost:3000',
-    'http://localhost'
+    'http://localhost:8080', 'http://localhost'
   );
 }
 app.use(cors({
@@ -303,6 +305,78 @@ app.post('/api/feedback', async (req, res) => {
       success: false, 
       error: error.message 
     });
+  }
+});
+
+// zerolook contact form endpoint
+app.post('/api/contact', async (req, res) => {
+  try {
+    const { name, company, email, role, volume, timeline, message, source } = req.body || {};
+
+    console.log(`[${new Date().toISOString()}] 📬 zerolook contact:`, {
+      name, company, email, role, source
+    });
+
+    const required = { name, company, email, role, message };
+    for (const [k, v] of Object.entries(required)) {
+      if (!v || !String(v).trim()) {
+        return res.status(400).json({ success: false, error: `Missing field: ${k}` });
+      }
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, error: 'Invalid email' });
+    }
+
+    if (!resend) {
+      console.log(`[${new Date().toISOString()}] ⚠️  Resend not configured - contact logged but not sent`);
+      return res.json({ success: true, messageId: 'logged-only' });
+    }
+
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => (
+      { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]
+    ));
+    const ts = new Date().toISOString();
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #F6B10C; border-bottom: 2px solid #F6B10C; padding-bottom: 10px;">
+          New zerolook contact
+        </h2>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr><td style="padding: 6px 0; color: #888; width: 140px;">Name</td><td style="padding: 6px 0; color: #222;"><strong>${esc(name)}</strong></td></tr>
+          <tr><td style="padding: 6px 0; color: #888;">Company</td><td style="padding: 6px 0; color: #222;"><strong>${esc(company)}</strong></td></tr>
+          <tr><td style="padding: 6px 0; color: #888;">Email</td><td style="padding: 6px 0; color: #222;"><a href="mailto:${esc(email)}">${esc(email)}</a></td></tr>
+          <tr><td style="padding: 6px 0; color: #888;">Role</td><td style="padding: 6px 0; color: #222;">${esc(role)}</td></tr>
+          <tr><td style="padding: 6px 0; color: #888;">Volume</td><td style="padding: 6px 0; color: #222;">${esc(volume) || '—'}</td></tr>
+          <tr><td style="padding: 6px 0; color: #888;">Timeline</td><td style="padding: 6px 0; color: #222;">${esc(timeline) || '—'}</td></tr>
+        </table>
+        <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="color: #333; margin-top: 0;">Message</h3>
+          <p style="color: #555; line-height: 1.6; white-space: pre-wrap;">${esc(message)}</p>
+        </div>
+        <p style="color: #888; font-size: 12px; margin-top: 30px;">
+          Submitted ${ts} from ${esc(source) || 'zerolook.com'}
+        </p>
+      </div>
+    `;
+
+    const result = await resend.emails.send({
+      from: 'contact@notifications.navifare.com',
+      to: ['contact@navifare.com'],
+      reply_to: email,
+      subject: `zerolook contact — ${role} — ${company}`,
+      html: htmlContent,
+    });
+
+    if (result.error) {
+      console.error(`[${new Date().toISOString()}] ❌ Resend error:`, result.error);
+      return res.status(500).json({ success: false, error: result.error.message });
+    }
+
+    console.log(`[${new Date().toISOString()}] ✅ zerolook contact email sent:`, result.data?.id);
+    res.json({ success: true, messageId: result.data?.id, timestamp: ts });
+  } catch (error) {
+    console.error(`[${new Date().toISOString()}] ❌ /api/contact failed:`, error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
