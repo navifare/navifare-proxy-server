@@ -153,6 +153,7 @@ const ALLOWED_ORIGINS = [
   'https://www.navifare.com',
   'https://zerolook.com',
   'https://www.zerolook.com',
+  'https://navifare.github.io',
 ];
 // Allow localhost only in development
 if (process.env.NODE_ENV !== 'production') {
@@ -166,7 +167,13 @@ app.use(cors({
   origin: function(origin, callback) {
     // No origin = server-to-server or same-origin (allow)
     // Chrome extension origins always allowed
-    if (!origin || ALLOWED_ORIGINS.includes(origin) || /^chrome-extension:\/\//.test(origin)) {
+    // *.onrender.com preview deploys allowed (Render auto-generates per-PR URLs)
+    if (
+      !origin ||
+      ALLOWED_ORIGINS.includes(origin) ||
+      /^chrome-extension:\/\//.test(origin) ||
+      /^https:\/\/[a-z0-9-]+\.onrender\.com$/i.test(origin)
+    ) {
       callback(null, true);
     } else {
       callback(new Error('CORS not allowed for origin: ' + origin));
